@@ -117,6 +117,36 @@ module ActiveRecord
 
     end
 
+    module SchemaStatements
+
+      # Adds a GiST or GIN index to a table which has an hstore column.
+      #
+      # Example:
+      #   add_hstore_index :people, :info, :type => :gin
+      #
+      # Options:
+      #   :type  = :gist (default) or :gin
+      #
+      # See http://www.postgresql.org/docs/9.2/static/textsearch-indexes.html for more information.
+      #
+      def add_hstore_index(table_name, column_name, options = {})
+        index_name, index_type, index_columns = add_index_options(table_name, column_name, options)
+        index_type = index_type.present? ? index_type : 'gist'
+        execute "CREATE INDEX #{index_name} ON #{table_name} USING #{index_type}(#{column_name})"
+      end
+
+      # Removes a GiST or GIN index of a table which has an hstore column.
+      #
+      # Example:
+      #   remove_hstore_index :people, :info
+      #
+      def remove_hstore_index(table_name, options = {})
+        index_name = index_name_for_remove(table_name, options)
+        execute "DROP INDEX #{index_name}"
+      end
+
+    end
+
     class PostgreSQLColumn < Column
       # Does the type casting from hstore columns using String#from_hstore or Hash#from_hstore.
       def type_cast_code_with_hstore(var_name)
@@ -127,7 +157,7 @@ module ActiveRecord
       def simplified_type_with_hstore(field_type)
         field_type == 'hstore' ? :hstore : simplified_type_without_hstore(field_type)
       end
-    
+
       alias_method_chain :type_cast_code, :hstore
       alias_method_chain :simplified_type, :hstore
     end
@@ -140,14 +170,14 @@ module ActiveRecord
       # Quotes correctly a hstore column value.
       def quote_with_hstore(value, column = nil)
         if value && column && column.sql_type == 'hstore'
-          raise HstoreTypeMismatch, "#{column.name} must have a Hash or a valid hstore value (#{value})" unless value.kind_of?(Hash) || value.valid_hstore?          
+          raise HstoreTypeMismatch, "#{column.name} must have a Hash or a valid hstore value (#{value})" unless value.kind_of?(Hash) || value.valid_hstore?
           return quote_without_hstore(value.to_hstore, column)
         end
         quote_without_hstore(value,column)
       end
-      
+
       alias_method_chain :quote, :hstore
-      alias_method_chain :native_database_types, :hstore 
+      alias_method_chain :native_database_types, :hstore
     end
   end
 end
